@@ -52,23 +52,25 @@ jobs:
             exit 0
           }
           
-          # Restore topics.json
-          if [ -f state-repo/topics.json ]; then
-            cp state-repo/topics.json .
+          # Restore topics.json from JAPRadio subdirectory
+          if [ -f state-repo/JAPRadio/topics.json ]; then
+            cp state-repo/JAPRadio/topics.json .
             echo "✓ Restored topics.json"
+          else
+            echo "⚠️  topics.json not found in state repo"
           fi
           
-          # Restore scripts/
-          if [ -d state-repo/scripts ] && [ "$(ls -A state-repo/scripts)" ]; then
+          # Restore scripts/ from JAPRadio subdirectory
+          if [ -d state-repo/JAPRadio/scripts ] && [ "$(ls -A state-repo/JAPRadio/scripts 2>/dev/null)" ]; then
             mkdir -p scripts
-            cp -r state-repo/scripts/*.json scripts/ 2>/dev/null || true
+            cp -r state-repo/JAPRadio/scripts/*.json scripts/ 2>/dev/null || true
             echo "✓ Restored scripts/"
           fi
           
           # Restore scripts/index.json specifically
-          if [ -f state-repo/scripts/index.json ]; then
+          if [ -f state-repo/JAPRadio/scripts/index.json ]; then
             mkdir -p scripts
-            cp state-repo/scripts/index.json scripts/
+            cp state-repo/JAPRadio/scripts/index.json scripts/
             echo "✓ Restored scripts/index.json"
           fi
           
@@ -165,21 +167,32 @@ jobs:
           ls -la
 
           git checkout -B "$TARGET_BRANCH"
+          
+          # Navigate to JAPRadio subdirectory
+          if [ -d JAPRadio ]; then
+            cd JAPRadio
+            echo "📂 Changed to JAPRadio subdirectory"
+          else
+            echo "⚠️  JAPRadio subdirectory not found, creating it..."
+            mkdir -p JAPRadio
+            cd JAPRadio
+          fi
 
-          echo "📥 Copying files to target repository..."
+          echo "📥 Copying files to JAPRadio subdirectory..."
           mkdir -p scripts audio
           
-          cp -v ../out/scripts/*.json scripts/ 2>/dev/null || echo "⚠ No script files to copy"
-          cp -v ../out/audio/*.mp3 audio/ 2>/dev/null || echo "⚠ No audio files to copy"
-          cp -v ../out/topics.json . 2>/dev/null || echo "⚠ No topics.json to copy"
+          cp -v ../../out/scripts/*.json scripts/ 2>/dev/null || echo "⚠ No script files to copy"
+          cp -v ../../out/audio/*.mp3 audio/ 2>/dev/null || echo "⚠ No audio files to copy"
+          cp -v ../../out/topics.json . 2>/dev/null || echo "⚠ No topics.json to copy"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           echo "🔍 Checking git status..."
+          cd ..
           git status
 
-          git add scripts/ audio/ topics.json 2>/dev/null || true
+          git add JAPRadio/scripts/ JAPRadio/audio/ JAPRadio/topics.json 2>/dev/null || true
 
           if git diff --cached --quiet; then
             echo "ℹ No changes to commit in external repository."
@@ -187,7 +200,7 @@ jobs:
           fi
 
           echo "✍️  Committing changes..."
-          git commit -m "chore: update radio outputs (run #${GITHUB_RUN_ID})"
+          git commit -m "chore(JAPRadio): update radio outputs (run #${GITHUB_RUN_ID})"
           
           echo "🚀 Pushing to $TARGET_REPO ($TARGET_BRANCH)..."
           git push origin "$TARGET_BRANCH"
