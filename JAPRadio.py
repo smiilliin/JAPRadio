@@ -283,7 +283,8 @@ def save_tts(script, now):
 def preprocess_for_tts(script):
     script = script \
         .replace("---", "")
-    script = re.sub(r'\[.*?\]', '。\n', script)
+    script = re.sub(r'\[.*?\]', '。。。\n', script)
+    script += "。\n"
 
     return script
 
@@ -327,6 +328,8 @@ def save_audio(now):
 
 
 audio_script = preprocess_for_tts(result["script"])
+print("[ 전처리된 스크립트 ]")
+print(audio_script)
 save_tts(audio_script, now)
 
 
