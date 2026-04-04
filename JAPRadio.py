@@ -2,10 +2,6 @@
 
 #%pip install langchain langchain-openai openai
 
-import os
-from env import OPENAI_API_KEY
-
-os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
 
 import json
 import os
