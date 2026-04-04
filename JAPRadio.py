@@ -8,6 +8,8 @@ import os
 from datetime import datetime
 
 FILE_PATH = "topics.json"
+SCRIPTS_DIR = "scripts"
+SCRIPTS_INDEX_PATH = os.path.join(SCRIPTS_DIR, "index.json")
 
 def load_topics():
     if not os.path.exists(FILE_PATH):
@@ -20,9 +22,27 @@ def save_topics(topics):
     with open(FILE_PATH, "w", encoding="utf-8") as f:
         json.dump(topics, f, ensure_ascii=False, indent=2)
 
+def update_scripts_index(filename):
+    if not os.path.exists(SCRIPTS_INDEX_PATH):
+        index = []
+    else:
+        try:
+            with open(SCRIPTS_INDEX_PATH, "r", encoding="utf-8") as f:
+                index = json.load(f)
+            if not isinstance(index, list):
+                index = []
+        except (json.JSONDecodeError, OSError):
+            index = []
+
+    if filename not in index:
+        index.append(filename)
+
+    with open(SCRIPTS_INDEX_PATH, "w", encoding="utf-8") as f:
+        json.dump(index, f, ensure_ascii=False, indent=2)
+
 def save_script(script, topic, now):
-    if not os.path.exists("scripts"):
-        os.mkdir("scripts")
+    if not os.path.exists(SCRIPTS_DIR):
+        os.mkdir(SCRIPTS_DIR)
 
     data = {
         "time": now,
@@ -30,10 +50,12 @@ def save_script(script, topic, now):
         "script": script
     }
 
-    filename = f"scripts/{now}.json"
+    filename = os.path.join(SCRIPTS_DIR, f"{now}.json")
 
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+    update_scripts_index(f"{now}.json")
 
 previous_topics = load_topics()
 print("[ Loaded previous topics ]")
