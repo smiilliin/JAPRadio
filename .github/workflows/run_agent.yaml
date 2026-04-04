@@ -28,6 +28,56 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Restore state from external repository
+        env:
+          TARGET_REPO: ${{ secrets.RESULT_REPO }}
+          TARGET_TOKEN: ${{ secrets.RESULT_REPO_TOKEN }}
+          TARGET_BRANCH: ${{ secrets.RESULT_REPO_BRANCH }}
+        run: |
+          set +e
+          
+          if [ -z "$TARGET_REPO" ] || [ -z "$TARGET_TOKEN" ]; then
+            echo "⚠️  Skipping state restore: RESULT_REPO or RESULT_REPO_TOKEN not configured"
+            exit 0
+          fi
+
+          TARGET_BRANCH=${TARGET_BRANCH:-main}
+          
+          echo "📥 Attempting to restore previous state from $TARGET_REPO..."
+          
+          git clone --depth 1 --branch "$TARGET_BRANCH" \
+            "https://x-access-token:${TARGET_TOKEN}@github.com/${TARGET_REPO}.git" \
+            state-repo 2>/dev/null || {
+            echo "⚠️  Could not clone state repository. Using fresh start."
+            exit 0
+          }
+          
+          # Restore topics.json
+          if [ -f state-repo/topics.json ]; then
+            cp state-repo/topics.json .
+            echo "✓ Restored topics.json"
+          fi
+          
+          # Restore scripts/
+          if [ -d state-repo/scripts ] && [ "$(ls -A state-repo/scripts)" ]; then
+            mkdir -p scripts
+            cp -r state-repo/scripts/*.json scripts/ 2>/dev/null || true
+            echo "✓ Restored scripts/"
+          fi
+          
+          # Restore scripts/index.json specifically
+          if [ -f state-repo/scripts/index.json ]; then
+            mkdir -p scripts
+            cp state-repo/scripts/index.json scripts/
+            echo "✓ Restored scripts/index.json"
+          fi
+          
+          # Cleanup
+          rm -rf state-repo
+          
+          echo "✅ State restored successfully"
+          exit 0
+
       - name: Run radio generator
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -55,12 +105,12 @@ jobs:
           set -e
 
           if [ -z "$TARGET_REPO" ]; then
-            echo "RESULT_REPO secret is not set. Expected format: owner/repo"
+            echo "❌ RESULT_REPO secret is not set. Expected format: owner/repo"
             exit 1
           fi
 
           if [ -z "$TARGET_TOKEN" ]; then
-            echo "RESULT_REPO_TOKEN secret is not set."
+            echo "❌ RESULT_REPO_TOKEN secret is not set."
             exit 1
           fi
 
@@ -68,38 +118,77 @@ jobs:
             TARGET_BRANCH="main"
           fi
 
+          echo "📂 Preparing output files..."
           mkdir -p out/scripts out/audio
-          cp -f scripts/*.json out/scripts/ 2>/dev/null || true
-          cp -f audio/*.mp3 out/audio/ 2>/dev/null || true
-          cp -f topics.json out/ 2>/dev/null || true
-
-          if [ -z "$(find out -type f -print -quit)" ]; then
-            echo "No output files to push."
-            exit 0
+          
+          # Copy script JSON files
+          if ls scripts/*.json 1> /dev/null 2>&1; then
+            cp -v scripts/*.json out/scripts/
+            echo "✓ Copied script files"
+          else
+            echo "⚠ No script JSON files found"
+          fi
+          
+          # Copy audio MP3 files
+          if ls audio/*.mp3 1> /dev/null 2>&1; then
+            cp -v audio/*.mp3 out/audio/
+            echo "✓ Copied audio files"
+          else
+            echo "⚠ No audio MP3 files found"
+          fi
+          
+          # Copy topics JSON
+          if [ -f topics.json ]; then
+            cp -v topics.json out/
+            echo "✓ Copied topics.json"
+          else
+            echo "⚠ topics.json not found"
           fi
 
+          # Check if there are files to push
+          FILE_COUNT=$(find out -type f | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "⚠ No output files generated. Skipping push."
+            exit 0
+          fi
+          
+          echo "📦 Found $FILE_COUNT files to push"
+
+          echo "🔄 Cloning target repository..."
           git clone --depth 1 \
             "https://x-access-token:${TARGET_TOKEN}@github.com/${TARGET_REPO}.git" \
             external-repo
 
           cd external-repo
-          git checkout -B "$TARGET_BRANCH"
-          cd JAPRadio
+          echo "📍 Current directory: $(pwd)"
+          echo "📋 Directory contents:"
+          ls -la
 
+          git checkout -B "$TARGET_BRANCH"
+
+          echo "📥 Copying files to target repository..."
           mkdir -p scripts audio
-          cp -f ../../out/scripts/*.json scripts/ 2>/dev/null || true
-          cp -f ../../out/audio/*.mp3 audio/ 2>/dev/null || true
-          cp -f ../../out/topics.json topics.json 2>/dev/null || true
+          
+          cp -v ../out/scripts/*.json scripts/ 2>/dev/null || echo "⚠ No script files to copy"
+          cp -v ../out/audio/*.mp3 audio/ 2>/dev/null || echo "⚠ No audio files to copy"
+          cp -v ../out/topics.json . 2>/dev/null || echo "⚠ No topics.json to copy"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add scripts audio topics.json
+          echo "🔍 Checking git status..."
+          git status
+
+          git add scripts/ audio/ topics.json 2>/dev/null || true
 
           if git diff --cached --quiet; then
-            echo "No changes to commit in external repository."
+            echo "ℹ No changes to commit in external repository."
             exit 0
           fi
 
-          git commit -m "chore: update radio outputs (${GITHUB_RUN_ID})"
+          echo "✍️  Committing changes..."
+          git commit -m "chore: update radio outputs (run #${GITHUB_RUN_ID})"
+          
+          echo "🚀 Pushing to $TARGET_REPO ($TARGET_BRANCH)..."
           git push origin "$TARGET_BRANCH"
+          echo "✅ Push successful!"
