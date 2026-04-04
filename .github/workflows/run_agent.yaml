@@ -1,0 +1,104 @@
+name: Run Radio Agent
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run radio generator
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python JAPRadio.py
+
+      - name: Upload outputs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-output-${{ github.run_id }}
+          path: |
+            scripts/*.json
+            audio/*.mp3
+            topics.json
+          if-no-files-found: warn
+
+      - name: Push outputs to external repository
+        if: success()
+        env:
+          TARGET_REPO: ${{ secrets.RESULT_REPO }}
+          TARGET_BRANCH: ${{ secrets.RESULT_REPO_BRANCH }}
+          TARGET_TOKEN: ${{ secrets.RESULT_REPO_TOKEN }}
+        run: |
+          set -e
+
+          if [ -z "$TARGET_REPO" ]; then
+            echo "RESULT_REPO secret is not set. Expected format: owner/repo"
+            exit 1
+          fi
+
+          if [ -z "$TARGET_TOKEN" ]; then
+            echo "RESULT_REPO_TOKEN secret is not set."
+            exit 1
+          fi
+
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH="main"
+          fi
+
+          mkdir -p out/scripts out/audio
+          cp -f scripts/*.json out/scripts/ 2>/dev/null || true
+          cp -f audio/*.mp3 out/audio/ 2>/dev/null || true
+          cp -f topics.json out/ 2>/dev/null || true
+
+          if [ -z "$(find out -type f -print -quit)" ]; then
+            echo "No output files to push."
+            exit 0
+          fi
+
+          git clone --depth 1 \
+            "https://x-access-token:${TARGET_TOKEN}@github.com/${TARGET_REPO}.git" \
+            external-repo
+
+          cd external-repo
+          git checkout -B "$TARGET_BRANCH"
+
+          mkdir -p scripts audio
+          cp -f ../out/scripts/*.json scripts/ 2>/dev/null || true
+          cp -f ../out/audio/*.mp3 audio/ 2>/dev/null || true
+          cp -f ../out/topics.json topics.json 2>/dev/null || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add scripts audio topics.json
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit in external repository."
+            exit 0
+          fi
+
+          git commit -m "chore: update radio outputs (${GITHUB_RUN_ID})"
+          git push origin "$TARGET_BRANCH"
