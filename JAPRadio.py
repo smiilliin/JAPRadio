@@ -283,7 +283,7 @@ def save_tts(script, now):
 def preprocess_for_tts(script):
     script = script \
         .replace("---", "")
-    script = re.sub(r'\[.*?\]', '......', script)
+    script = re.sub(r'\[.*?\]', '。\n', script)
 
     return script
 
