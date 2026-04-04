@@ -1,7 +1,7 @@
-env.py
-.venv
+/.venv
 __pycache__
 topics.json
 scripts
 audio
+tts
 JAPRadio.ipynb
