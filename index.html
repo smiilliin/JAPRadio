@@ -263,12 +263,28 @@
       if (!timeKey || !/^\d{8}_\d{6}$/.test(timeKey)) {
         return timeKey || "-";
       }
-      const y = timeKey.slice(0, 4);
-      const m = timeKey.slice(4, 6);
-      const d = timeKey.slice(6, 8);
-      const hh = timeKey.slice(9, 11);
-      const mm = timeKey.slice(11, 13);
-      return `${y}-${m}-${d} ${hh}:${mm}`;
+      const year = Number(timeKey.slice(0, 4));
+      const month = Number(timeKey.slice(4, 6));
+      const day = Number(timeKey.slice(6, 8));
+      const hour = Number(timeKey.slice(9, 11));
+      const minute = Number(timeKey.slice(11, 13));
+      const second = Number(timeKey.slice(13, 15));
+      const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+
+      const parts = new Intl.DateTimeFormat(undefined, {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+      }).formatToParts(utcDate);
+
+      const values = Object.fromEntries(
+        parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
+      );
+
+      return `${values.year}. ${values.month}. ${values.day} ${values.hour}:${values.minute}`;
     }
 
     async function fetchScriptFileNames() {
