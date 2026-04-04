@@ -84,11 +84,12 @@ jobs:
 
           cd external-repo
           git checkout -B "$TARGET_BRANCH"
+          cd JAPRadio
 
           mkdir -p scripts audio
-          cp -f ../out/scripts/*.json scripts/ 2>/dev/null || true
-          cp -f ../out/audio/*.mp3 audio/ 2>/dev/null || true
-          cp -f ../out/topics.json topics.json 2>/dev/null || true
+          cp -f ../../out/scripts/*.json scripts/ 2>/dev/null || true
+          cp -f ../../out/audio/*.mp3 audio/ 2>/dev/null || true
+          cp -f ../../out/topics.json topics.json 2>/dev/null || true
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
