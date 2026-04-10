@@ -16,7 +16,6 @@ JAPRadio is a small Japanese radio content generator built for beginner learners
 
 ## Project Structure
 
-- `JAPRadio.ipynb` - main notebook version of the workflow.
 - `JAPRadio.py` - exported Python script from the notebook.
 - `index.html` - simple browser-based episode viewer.
 - `topics.json` - history of previously used topics.
